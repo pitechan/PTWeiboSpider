@@ -9,7 +9,6 @@ import logging
 import datetime
 import threading
 import requests
-from bs4 import BeautifulSoup
 
 class Captcha:
 
@@ -125,16 +124,26 @@ class WeiboSpider:
                 cookie = re.findall(r'(\{.*\})', line)
                 for item in cookie:
                     self.cookie_list.append(ast.literal_eval(item))
+        if len(self.user_list) == 0:
+            logging.warning('Cookie does not exist')
+        else:
+            logging.warning("Get %s cookies" % len(self.user_list))
 
     def checkCookie(self, cookie):
         test_page = requests.get('http://weibo.cn', headers=self.headers, cookies=cookie)
         if '登录' not in test_page.text:
-            logging.warning('Cookie valid.')
+            logging.warning('Valid Cookie')
             return True
         else:
-            logging.warning('Cookie invaild.')
+            logging.warning('Invaild Cookie.')
             return False
+
+    def run(self):
+        self.loginWeibo()
+        self.saveLoginedCookie()
 
 if __name__ == '__main__':
     spider = WeiboSpider()
+    spider.run()
+
 
