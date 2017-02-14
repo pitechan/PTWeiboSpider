@@ -1,149 +1,160 @@
 # -*- coding: utf-8 -*-
 
-import os
 import re
-import sys
-import ast
-import time
-import logging
-import datetime
-import threading
+import os
 import requests
+import logging
+import time
+import threading
+from settings import HEADERS, WEIBODATA, COMMENTDATA, COMMENTWEIBOHEADERS, ADDFANSHEADERS, REPOSTWEIBOHEADERS, REPOSTDATA, THUMBWEIBOHEADERS, ABSOLUTEPATH
 
-class Captcha:
+class Weibo:
 
-    def __init__(self, cap_id=None, vk=None, password_vk=None, code=None, login_url=None):
-        self.cap_id = cap_id
-        self.vk = vk
-        self.password_vk = password_vk
-        self.code = code
-        self.login_url = login_url
+    def __init__(self, cookies):
+        self.cookies = cookies
 
-class User:
+    def post(self, content):
+        for cookies in self.cookies:
+            get_st = requests.get('http://weibo.cn', headers=HEADERS, cookies=cookies)
+            try:
+                st = re.findall(r'<form action="/mblog/sendmblog\?st=(.*?)"', get_st.text)[0]
+            except:
+                raise AttributeError('Can not get value for st.')
+            WEIBODATA['content'] = content
+            requests.post('http://weibo.cn/mblog/sendmblog?st=' + st, headers=HEADERS, cookies=cookies, data=WEIBODATA)
 
-    def __init__(self, phone_num=None, password=None, cookie=None):
-        self.phone_num = phone_num
-        self.password = password
-        self.cookie = cookie
-
-class WeiboSpider:
-
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36'
-    }
-
-    login_data = {
-        'remember': 'on',
-        'backURL': 'http%3A%2F%2Fweibo.cn%2F',
-        'backTitle': '微博',
-        'tryCount': '',
-        'submit': '登录',
-    }
-
-    base_url = 'https://weibo.cn/login/'
-    absolute_path = os.path.split(os.path.realpath(__file__))[0]
-
-    requests_session = requests.session()
-
-    user = User()
-    captcha = Captcha()
-
-    user_list = []
-    cookie_list = []
-
-    def downloadCaptcha(self):
-        login_page = self.requests_session.get('http://login.weibo.cn/login/?ns=1&revalid=2&backURL=http%3A%2F%2Fweibo.cn%2F&backTitle=%CE%A2%B2%A9&vt=', headers=self.headers)
+    def comment(self, weibo_url, content):
         try:
-            vk = re.findall(r'input type=\"hidden\" name=\"vk\" value=\"(.*?)\"', login_page.text)[0]
+            weibo_id = re.findall(r'http://weibo\.cn/comment/(.*?)\?', weibo_url)[0]
         except:
-            raise  AttributeError('Can not get value for vk.')
-        password_vk = 'password_' + str(vk.split('_')[0])
+            raise  ValueError('Url does not contain a weibo id')
+        COMMENTDATA['id'] = weibo_id
+        COMMENTDATA['content'] = content
+        COMMENTWEIBOHEADERS['Referer'] = weibo_url
+        for cookies in self.cookies:
+            get_st = requests.get('http://weibo.cn', headers=HEADERS, cookies=cookies)
+            st = re.findall(r'st=(.*?)"', get_st.text)[0]
+            get_srcuid = requests.get(weibo_url, headers=HEADERS, cookies=cookies)
+            srcuid = re.findall(r'<a href="/u/(.*?)\?', get_srcuid.text)[0]
+            COMMENTDATA['srcuid'] = srcuid
+            requests.post('http://weibo.cn/comments/addcomment?vt=4&st=' + st, cookies=cookies, headers=COMMENTWEIBOHEADERS, data=COMMENTDATA)
+
+    def addfans(self, user_url):
+        ADDFANSHEADERS['Referer'] = user_url
+        for cookies in self.cookies:
+            get_addfans = requests.get(user_url, cookies=cookies, headers=HEADERS)
+            try:
+                add_attention_url = re.findall(r'<a href="(/attention/add\?uid=\d+&amp;rl=0&amp;st=\w+)">', get_addfans.text)[0].replace('amp;', '')
+            except:
+                raise  ValueError('Cannot get add fans url')
+            try:
+                requests.get('http://weibo.cn' + add_attention_url, cookies=cookies, headers=ADDFANSHEADERS)
+            except:
+                logging.warning('Error when add fans %s' %cookies)
+
+    def repost(self ,weibo_url, content):
         try:
-            cap_id = re.findall(r'input type=\"hidden\" name=\"capId\" value=\"(.*?)\"', login_page.text)[0]
+            weibo_id = re.findall(r'http://weibo\.cn/repost/(.*?)\?', weibo_url)[0]
         except:
-            raise AttributeError('Can not get value for cap_id.')
+            raise  ValueError('Url does not contain a weibo id')
+        REPOSTWEIBOHEADERS['Referer'] = weibo_url
+        REPOSTDATA['content'] = content
+        for cookies in self.cookies:
+                get_st = requests.get('http://weibo.cn', headers=HEADERS, cookies=cookies)
+                try:
+                    st = re.findall(r'st=(.*?)"', get_st.text)[0]
+                except:
+                    raise AttributeError('Can not get value for st.')
+                requests.post('http://weibo.cn/repost/dort/' + weibo_id + '?st=' + st, cookies=cookies, data=REPOSTDATA, headers=REPOSTWEIBOHEADERS)
+
+    def thumb(self, weibo_url):
         try:
-            login_url = self.base_url + re.findall(r'form action=\"(.*?)\"', login_page.text)[0]
+            weibo_id = re.findall(r'http://weibo\.cn/repost/(.*?)\?\w+', weibo_url)[0]
         except:
-            raise  AttributeError('Can not get value for login_url.')
-        cap_pic = self.requests_session.get('http://weibo.cn/interface/f/ttt/captcha/show.php?cpt=' + cap_id, headers=self.headers)
-        with open(self.absolute_path + '/captcha.jpg', 'wb') as f:
-            f.write(cap_pic.content)
-        logging.warning('Captcha picture has been downloaded.')
-        self.captcha.password_vk = password_vk
-        self.captcha.cap_id = cap_id
-        self.captcha.vk = vk
-        self.captcha.login_url = login_url
+            raise  ValueError('Url does not contain a weibo id')
+        THUMBWEIBOHEADERS['Referer'] = weibo_url
+        for cookies in self.cookies:
+            get_st = requests.get('http://weibo.cn', headers=HEADERS, cookies=cookies)
+            try:
+                st = re.findall(r'st=(.*?)"', get_st.text)[0]
+            except:
+                raise AttributeError('Can not get value for st.')
+            try:
+                suid = re.findall(r'<a href="/(.*?)/info', get_st.text)[0]
+            except:
+                raise AttributeError('Can not get value for suid.')
+            requests.get('http://weibo.cn/attitude/' + weibo_id + '/add?uid=' + suid + '&rl=0&gid=10001&vt=4&st=' + st, cookies=cookies, headers=THUMBWEIBOHEADERS)
 
-    def getVerificationCode(self):
-        verification_code = input("Please enter the verification code shown in the picture. Enter 'n' if the picture is blur:")
-        if verification_code == 'n':
-            self.downloadCaptcha()
-            self.getVerificationCode()
+    def backup(self, user_url):
+        content_list = []
+        user_res = requests.get(user_url, headers=HEADERS, cookies=self.cookies[0])
+        page_num = re.findall(r'<input name="mp" type="hidden" value="(.*?)"', user_res.text)
+        if len(page_num):
+            page = page_num[0]
+            n = 1
+            while n <= int(page):
+                url = user_url + '?page=' + str(n)
+                res = requests.get(url, headers=HEADERS, cookies=self.cookies[0])
+                content = re.findall(r'<span class="ctt">(.*?)</span>', res.text)
+                for con in content:
+                    print(con)
+                    content_list.append(con)
+                time.sleep(3)
+                n = n + 1
         else:
-            self.captcha.code = verification_code
+            content = re.findall(r'<span class="ctt">(.*?)</span>', user_res.text)
+            for con in content:
+                print(con)
+                content_list.append(con)
+        with open(os.path.join(ABSOLUTEPATH, 'backup.txt'), 'a') as f:
+            for con in content_list:
+                f.write(con)
 
-    def enterLoginData(self):
-        phone_num = input('Please enter the phone number:')
-        password = input('Please enter the password:')
-        self.user.phone_num = phone_num
-        self.user.password = password
+    def specialCare(self, user_url, min=60):
+        user_index_res = requests.get(user_url, headers=HEADERS, cookies=self.cookies[0])
+        now_content = re.findall(r'<span class="ctt">(.*?)</span>', user_index_res.text)
+        n = int(min/3)
+        while n > 0:
+            user_index_res = requests.get(user_url, headers=HEADERS, cookies=self.cookies[0])
+            content = re.findall(r'<span class="ctt">(.*?)</span>', user_index_res.text)
+            for con in content:
+                if con not in now_content:
+                    logging.warning('New weibo captured: %s' % con)
+                    now_content.append(con)
+            time.sleep(180)
+            n-=1
 
-    def loginWeibo(self, retry=False):
-        self.downloadCaptcha()
-        self.getVerificationCode()
-        if not retry:
-            self.enterLoginData()
-        self.login_data['mobile'] = self.user.phone_num
-        self.login_data[self.captcha.password_vk] = self.user.password
-        self.login_data['code'] = self.captcha.code
-        self.login_data['vk'] = self.captcha.vk
-        self.login_data['capId'] = self.captcha.cap_id
-        login_page = self.requests_session.post(self.captcha.login_url, headers=self.headers, data=self.login_data)
-        logined_page = self.requests_session.get('http://weibo.cn/?vt=4', headers=self.headers)
-        if '登录' in logined_page.text:
-            logging.warning('Login failed.')
-            retry_or_exit = input("Enter 'n' in order to retry, else enter any other words:")
-            if retry_or_exit == 'n':
-                self.loginWeibo(retry=True)
-            else:
-                sys.exit()
+    def specialCareInBackground(self, user_url, min=60):
+        t = threading.Thread(target=self.specialCare, args=(user_url, min))
+        t.start()
+
+    def search(self, content, pages):
+        content_list = []
+        url = 'http://weibo.cn/search/mblog?hideSearchFrame=&keyword=' + content + '&page=1'
+        url_res = requests.get(url, headers=HEADERS, cookies=self.cookies[0])
+        actual_pages = re.findall(r'nbsp;1/(.*?)页</div>', url_res.text)
+        if len(actual_pages):
+            logging.warning('%s pages searched' % actual_pages)
+            if pages > int(actual_pages):
+                pages = int(actual_pages)
+            n = 1
+            while n <= int(pages):
+                url = 'http://weibo.cn/search/mblog?hideSearchFrame=&keyword=' + content + '&page=' + str(n)
+                res = requests.get(url, headers=HEADERS, cookies=self.cookies[0])
+                content = re.findall(r'<span class="ctt">(.*?)</span>', res.text)
+                for con in content:
+                    print(con)
+                    content_list.append(con)
+                time.sleep(3)
+                n = n + 1
         else:
-            logging.warning('Login success.')
-
-    def saveLoginedCookie(self):
-        with open(self.absolute_path + '/cookie.txt', 'a+') as f:
-            f.write('PhoneNum:' + self.user.phone_num + ' | ' + str(datetime.datetime.now()) + '\n' + str(self.requests_session.cookies.get_dict()) + '\n')
-
-    def readCookieFile(self):
-        with open(self.absolute_path + '/cookie.txt', 'r') as f:
-            for line in f.readlines():
-                info_dict = {}
-                phone_number = re.findall(r'PhoneNum:(.*?) \|', line)
-                self.user_list = self.user_list + phone_number
-                cookie = re.findall(r'(\{.*\})', line)
-                for item in cookie:
-                    self.cookie_list.append(ast.literal_eval(item))
-        if len(self.user_list) == 0:
-            logging.warning('Cookie does not exist')
-        else:
-            logging.warning("Get %s cookies" % len(self.user_list))
-
-    def checkCookie(self, cookie):
-        test_page = requests.get('http://weibo.cn', headers=self.headers, cookies=cookie)
-        if '登录' not in test_page.text:
-            logging.warning('Valid Cookie')
-            return True
-        else:
-            logging.warning('Invaild Cookie.')
-            return False
-
-    def run(self):
-        self.loginWeibo()
-        self.saveLoginedCookie()
-
-if __name__ == '__main__':
-    spider = WeiboSpider()
-    spider.run()
+            res = requests.get(url, headers=HEADERS, cookies=self.cookies[0])
+            content = re.findall(r'<span class="ctt">(.*?)</span>', res.text)
+            for con in content:
+                print(con)
+                content_list.append(con)
+        with open(os.path.join(ABSOLUTEPATH, 'search.txt'), 'a') as f:
+            for con in content_list:
+                f.write(con)
 
 
