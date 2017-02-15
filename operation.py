@@ -8,9 +8,9 @@ import time
 import threading
 from settings import HEADERS, WEIBODATA, COMMENTDATA, COMMENTWEIBOHEADERS, ADDFANSHEADERS, REPOSTWEIBOHEADERS, REPOSTDATA, THUMBWEIBOHEADERS, ABSOLUTEPATH
 
-class Weibo:
+class Operation:
 
-    def __init__(self, cookies):
+    def __init__(self, *cookies):
         self.cookies = cookies
 
     def post(self, content):
@@ -110,6 +110,28 @@ class Weibo:
             for con in content_list:
                 f.write(con)
 
+    def backupPic(self, user_url):
+        user_res = requests.get(user_url, headers=HEADERS, cookies=self.cookies[0])
+        page_num = re.findall(r'<input name="mp" type="hidden" value="(.*?)"', user_res.text)
+        if len(page_num):
+            page = page_num[0]
+            n = 1
+            while n <= int(page):
+                url = user_url + '?page=' + str(n)
+                res = requests.get(url, headers=HEADERS, cookies=self.cookies[0])
+                pic_id = re.findall(r'<a href="http://weibo.cn/mblog/oripic\?id=.*&amp;u=(\w+)"', res.text)
+                for id in pic_id:
+                    pic = requests.get('http://wx4.sinaimg.cn/large/' + id + '.jpg', headers=HEADERS)
+                    with open(os.path.join(ABSOLUTEPATH, 'backup', '.'.join((id, 'jpg'))), 'wb') as f:
+                        f.write(pic.content)
+                n = n + 1
+        else:
+            pic_id = re.findall(r'<a href="http://weibo.cn/mblog/oripic\?id=.*&amp;u=(\w+)"', user_res.text)
+            for id in pic_id:
+                pic = requests.get('http://wx4.sinaimg.cn/large/' + id + '.jpg', headers=HEADERS)
+                with open(os.path.join(ABSOLUTEPATH, 'backup', '.'.join((id, 'jpg'))), 'wb') as f:
+                    f.write(pic.content)
+
     def specialCare(self, user_url, min=60):
         user_index_res = requests.get(user_url, headers=HEADERS, cookies=self.cookies[0])
         now_content = re.findall(r'<span class="ctt">(.*?)</span>', user_index_res.text)
@@ -127,6 +149,7 @@ class Weibo:
     def specialCareInBackground(self, user_url, min=60):
         t = threading.Thread(target=self.specialCare, args=(user_url, min))
         t.start()
+        return t
 
     def search(self, content, pages):
         content_list = []
@@ -157,4 +180,6 @@ class Weibo:
             for con in content_list:
                 f.write(con)
 
-
+    def hotsearch(self):
+        search_page = requests.get('http://weibo.cn/search/', headers=HEADERS, cookies=self.cookies[0])
+        return re.findall(r'<a href="/search/mblog/\?keyword=.*">(.*?)</a>', search_page.text)

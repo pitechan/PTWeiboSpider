@@ -2,9 +2,9 @@
 
 import sys
 import logging
-import cookie
-import user
-import captcha
+from cookie import Cookie
+from user import User
+from captcha import Captcha
 from datetime import datetime
 from settings import HEADERS, LOGINDATA
 
@@ -16,9 +16,9 @@ class Login:
         self.login()
 
     def login(self, retry=False):
-        self.user = user.new()
+        self.user = User.new()
         if not retry:
-            self.captcha = captcha.new()
+            self.captcha = Captcha.new()
         LOGINDATA['mobile'] = self.user.phone_num
         LOGINDATA[self.captcha.password_vk] = self.user.password
         LOGINDATA['code'] = self.captcha.code
@@ -35,5 +35,5 @@ class Login:
                 sys.exit()
         else:
             logging.warning('Login success.')
-            new_cookie = cookie.Cookie(self.user.phone_num, datetime.now(), self.captcha.requests_session.cookies.get_dict())
+            new_cookie = Cookie(self.user.phone_num, datetime.now(), self.captcha.requests_session.cookies.get_dict())
             new_cookie.save()
