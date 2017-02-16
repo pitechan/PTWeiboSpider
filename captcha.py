@@ -6,6 +6,7 @@ import logging
 import requests
 from settings import HEADERS, ABSOLUTEPATH
 
+
 class Captcha:
 
     def __init__(self, requests_session, cap_id, vk, code, login_url):

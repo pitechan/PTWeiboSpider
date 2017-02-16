@@ -34,8 +34,8 @@ COMMENTDATA = {
     }
 
 REPOSTDATA = {
-        'act':'dort',
-        'rl':'2',
-        'id':'EuMI563xx',
-        'content':''
+        'act': 'dort',
+        'rl': '2',
+        'id': 'EuMI563xx',
+        'content': ''
     }

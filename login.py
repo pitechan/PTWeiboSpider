@@ -8,6 +8,7 @@ from captcha import Captcha
 from datetime import datetime
 from settings import HEADERS, LOGINDATA
 
+
 class Login:
 
     def __init__(self):

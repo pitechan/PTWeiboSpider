@@ -7,6 +7,7 @@ import logging
 import requests
 from settings import ABSOLUTEPATH, HEADERS
 
+
 class Cookie:
 
     def __init__(self, phone_num, date, params):
@@ -35,7 +36,7 @@ class Cookie:
         with open(os.path.join(ABSOLUTEPATH, 'cookie.txt'), 'r') as f:
             for line in f.readlines():
                 phone_number = re.findall(r'PhoneNum:(.*?) \|', line)
-                user_list = user_list + phone_number
+                user_list += phone_number
                 cookie = re.findall(r'(\{.*\})', line)
                 for item in cookie:
                     cookie_list.append(ast.literal_eval(item))

@@ -8,6 +8,7 @@ import time
 import threading
 from settings import HEADERS, WEIBODATA, COMMENTDATA, COMMENTWEIBOHEADERS, ADDFANSHEADERS, REPOSTWEIBOHEADERS, REPOSTDATA, THUMBWEIBOHEADERS, ABSOLUTEPATH
 
+
 class Operation:
 
     def __init__(self, *cookies):
@@ -27,7 +28,7 @@ class Operation:
         try:
             weibo_id = re.findall(r'http://weibo\.cn/comment/(.*?)\?', weibo_url)[0]
         except:
-            raise  ValueError('Url does not contain a weibo id')
+            raise ValueError('Url does not contain a weibo id')
         COMMENTDATA['id'] = weibo_id
         COMMENTDATA['content'] = content
         COMMENTWEIBOHEADERS['Referer'] = weibo_url
@@ -46,17 +47,17 @@ class Operation:
             try:
                 add_attention_url = re.findall(r'<a href="(/attention/add\?uid=\d+&amp;rl=0&amp;st=\w+)">', get_addfans.text)[0].replace('amp;', '')
             except:
-                raise  ValueError('Cannot get add fans url')
+                raise ValueError('Cannot get add fans url')
             try:
                 requests.get('http://weibo.cn' + add_attention_url, cookies=cookies, headers=ADDFANSHEADERS)
             except:
-                logging.warning('Error when add fans %s' %cookies)
+                logging.warning('Error when add fans %s' % cookies)
 
-    def repost(self ,weibo_url, content):
+    def repost(self, weibo_url, content):
         try:
             weibo_id = re.findall(r'http://weibo\.cn/repost/(.*?)\?', weibo_url)[0]
         except:
-            raise  ValueError('Url does not contain a weibo id')
+            raise ValueError('Url does not contain a weibo id')
         REPOSTWEIBOHEADERS['Referer'] = weibo_url
         REPOSTDATA['content'] = content
         for cookies in self.cookies:
@@ -71,7 +72,7 @@ class Operation:
         try:
             weibo_id = re.findall(r'http://weibo\.cn/repost/(.*?)\?\w+', weibo_url)[0]
         except:
-            raise  ValueError('Url does not contain a weibo id')
+            raise ValueError('Url does not contain a weibo id')
         THUMBWEIBOHEADERS['Referer'] = weibo_url
         for cookies in self.cookies:
             get_st = requests.get('http://weibo.cn', headers=HEADERS, cookies=cookies)
@@ -91,16 +92,14 @@ class Operation:
         page_num = re.findall(r'<input name="mp" type="hidden" value="(.*?)"', user_res.text)
         if len(page_num):
             page = page_num[0]
-            n = 1
-            while n <= int(page):
-                url = user_url + '?page=' + str(n)
+            for i in range(1, int(page)+1):
+                url = user_url + '?page=' + str(i)
                 res = requests.get(url, headers=HEADERS, cookies=self.cookies[0])
                 content = re.findall(r'<span class="ctt">(.*?)</span>', res.text)
                 for con in content:
                     print(con)
                     content_list.append(con)
                 time.sleep(3)
-                n = n + 1
         else:
             content = re.findall(r'<span class="ctt">(.*?)</span>', user_res.text)
             for con in content:
@@ -136,7 +135,7 @@ class Operation:
         user_index_res = requests.get(user_url, headers=HEADERS, cookies=self.cookies[0])
         now_content = re.findall(r'<span class="ctt">(.*?)</span>', user_index_res.text)
         n = int(min/3)
-        while n > 0:
+        for i in range(0, n):
             user_index_res = requests.get(user_url, headers=HEADERS, cookies=self.cookies[0])
             content = re.findall(r'<span class="ctt">(.*?)</span>', user_index_res.text)
             for con in content:
@@ -144,7 +143,6 @@ class Operation:
                     logging.warning('New weibo captured: %s' % con)
                     now_content.append(con)
             time.sleep(180)
-            n-=1
 
     def specialCareInBackground(self, user_url, min=60):
         t = threading.Thread(target=self.specialCare, args=(user_url, min))
@@ -160,16 +158,14 @@ class Operation:
             logging.warning('%s pages searched' % actual_pages)
             if pages > int(actual_pages):
                 pages = int(actual_pages)
-            n = 1
-            while n <= int(pages):
-                url = 'http://weibo.cn/search/mblog?hideSearchFrame=&keyword=' + content + '&page=' + str(n)
+            for i in range(0, int(pages)):
+                url = 'http://weibo.cn/search/mblog?hideSearchFrame=&keyword=' + content + '&page=' + str(i)
                 res = requests.get(url, headers=HEADERS, cookies=self.cookies[0])
                 content = re.findall(r'<span class="ctt">(.*?)</span>', res.text)
                 for con in content:
                     print(con)
                     content_list.append(con)
                 time.sleep(3)
-                n = n + 1
         else:
             res = requests.get(url, headers=HEADERS, cookies=self.cookies[0])
             content = re.findall(r'<span class="ctt">(.*?)</span>', res.text)
